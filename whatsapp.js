@@ -7,7 +7,9 @@ const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 require('dotenv').config();
 
-// Callback to send data to app.js
+// --- GLOBAL MEMORY CACHE ---
+// This safely stores processed IDs to prevent ghost duplicates
+const processedMessageIds = new Set();
 let pipelineCallback = null;
 
 function registerPipeline(callbackFunction) {
@@ -17,56 +19,58 @@ function registerPipeline(callbackFunction) {
 async function startWhatsAppListener() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_session');
 
+    // Initialize the WhatsApp Socket (this creates "sock")
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false, 
         logger: pino({ level: 'silent' })
     });
 
-sock.ev.on('messages.upsert', async (m) => {
-        try {
-            if (m.type !== 'notify') return;
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect, qr } = update;
 
-            for (const msg of m.messages) {
-                if (!msg.message) continue;
+        if (qr) {
+            console.log('\n--- SCAN THE QR CODE BELOW WITH WHATSAPP TO LOG IN ---');
+            qrcode.generate(qr, { small: true });
+            console.log('-----------------------------------------------------\n');
+        }
 
-                const remoteJid = msg.key.remoteJid;
-                const fromMe = msg.key.fromMe;
-                const textContent = msg.message.conversation || msg.message.extendedTextMessage?.text;
-
-                if (!textContent) continue;
-
-                // Strip any accidental spaces from the .env variable just in case
-                const targetGroupJid = process.env.WHATSAPP_GROUP_JID ? process.env.WHATSAPP_GROUP_JID.trim() : undefined;
-
-                // --- EXTREME DEBUGGING LOGS ---
-                console.log(`\n=========================================`);
-                console.log(`[DEBUG ALERT] WhatsApp sent a message to the script!`);
-                console.log(`[1] Incoming JID:   "${remoteJid}"`);
-                console.log(`[2] Your .env JID:  "${targetGroupJid}"`);
-                console.log(`[3] Do they match?:  ${remoteJid === targetGroupJid}`);
-                console.log(`[4] Text Content:   "${textContent}"`);
-                console.log(`=========================================\n`);
-                // ------------------------------
-
-                if (remoteJid === targetGroupJid) {
-                    console.log(`[Ingestion Core] Match confirmed. Sending to pipeline...`);
-                    if (pipelineCallback) pipelineCallback(textContent);
-                }
+        if (connection === 'close') {
+            const statusCode = (lastDisconnect?.error)?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            
+            console.log(`[Connection Status] Closed. Reason Code: ${statusCode}. Reconnecting: ${shouldReconnect}`);
+            
+            if (shouldReconnect) {
+                console.log("[Connection Status] Attempting to re-establish connection stream...");
+                setTimeout(startWhatsAppListener, 2000); 
             }
-        } catch (pipelineError) {
-            console.error("\n[Pipeline Error] Error caught inside message loop:", pipelineError.message);
+        } else if (connection === 'open') {
+            console.log('\n=========================================');
+            console.log('SUCCESS: Cortex is officially connected to WhatsApp!');
+            console.log('=========================================\n');
         }
     });
 
     sock.ev.on('creds.update', saveCreds);
 
+    // 🚨 The Message Listener (Now safely inside the function where "sock" exists) 🚨
     sock.ev.on('messages.upsert', async (m) => {
         try {
             if (m.type !== 'notify') return;
 
             for (const msg of m.messages) {
                 if (!msg.message) continue;
+
+                // DUPLICATE PREVENTION: Check if we have already seen this exact message ID
+                const messageId = msg.key.id;
+                if (processedMessageIds.has(messageId)) continue;
+                
+                // Add to memory cache so we don't process it again
+                processedMessageIds.add(messageId);
+                
+                // Keep the cache from growing infinitely by clearing it every 1000 messages
+                if (processedMessageIds.size > 1000) processedMessageIds.clear();
 
                 const remoteJid = msg.key.remoteJid;
                 const fromMe = msg.key.fromMe;
@@ -83,7 +87,6 @@ sock.ev.on('messages.upsert', async (m) => {
 
                 if (remoteJid === targetGroupJid) {
                     console.log(`[Ingestion Core] Captured message (fromMe: ${fromMe}): "${textContent}"`);
-                    // Sends the text directly to the Gemini brain in app.js
                     if (pipelineCallback) pipelineCallback(textContent);
                 }
             }

@@ -9,30 +9,34 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 const SYSTEM_PROMPT = `
 You are the parsing engine for a personal productivity dashboard. 
-Your job is to read a user's text message and categorize it as a 'task', 'habit', or 'project'.
+Read the user's message and categorize it into a strict JSON format.
 
 RULES:
-1. You must ONLY respond with a valid JSON object. No markdown, no explanations, no greetings.
-2. The JSON must exactly match one of the following structures:
+1. ONLY respond with valid JSON.
+2. Determine if the user is CREATING a new item, or COMPLETING an existing task.
 
-For Tasks:
-{ "type": "task", "content": "The extracted task description" }
+JSON SCHEMA:
+For Creating a Task:
+{ "type": "task", "action": "create", "content": "The extracted task description" }
 
-For Habits:
-{ "type": "habit", "name": "The extracted habit name" }
+For Completing/Marking Done:
+{ "type": "task", "action": "complete", "target": "The core keywords of the task to complete" }
 
-For Projects:
-{ "type": "project", "name": "The extracted project name" }
+For Habits (Always create):
+{ "type": "habit", "action": "create", "name": "The habit name" }
+
+For Projects (Always create):
+{ "type": "project", "action": "create", "name": "The project name" }
 
 EXAMPLES:
 User: "I need to buy milk tomorrow"
-Output: { "type": "task", "content": "Buy milk tomorrow" }
+Output: { "type": "task", "action": "create", "content": "Buy milk tomorrow" }
 
-User: "Start a new project for rebuilding my motorcycle"
-Output: { "type": "project", "name": "Rebuild motorcycle" }
+User: "I bought the milk" OR "Mark milk as done"
+Output: { "type": "task", "action": "complete", "target": "milk" }
 
-User: "Read 10 pages"
-Output: { "type": "habit", "name": "Read 10 pages" }
+User: "Finished the motorcycle battery"
+Output: { "type": "task", "action": "complete", "target": "motorcycle battery" }
 `;
 
 async function classifyMessage(rawText) {

@@ -18,13 +18,26 @@ async function processMessagePipeline(rawText) {
         return;
     }
 
-    // 2. Route the structured data to the correct local database table
+    // 2. Route the structured data based on Type and Action
     try {
         let result;
 
         if (parsedData.type === 'task') {
-            result = db.insertTask(parsedData.content);
-            console.log(`[Pipeline] ✅ Task saved to DB (ID: ${result.id}) -> ${result.content}`);
+            
+            // --- NEW: Handle Task Completion ---
+            if (parsedData.action === 'complete') {
+                const changes = db.completeTask(parsedData.target);
+                if (changes > 0) {
+                    console.log(`[Pipeline] 🎯 Task marked as DONE: "${parsedData.target}" (${changes} updated)`);
+                } else {
+                    console.log(`[Pipeline] ⚠️ Could not find a pending task matching: "${parsedData.target}"`);
+                }
+            } 
+            // --- ORIGINAL: Handle Task Creation ---
+            else {
+                result = db.insertTask(parsedData.content);
+                console.log(`[Pipeline] ✅ Task created (ID: ${result.id}) -> ${result.content}`);
+            }
             
         } else if (parsedData.type === 'habit') {
             result = db.insertHabit(parsedData.name);

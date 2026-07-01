@@ -54,6 +54,15 @@ function insertTask(content, projectId = null) {
     return { id: info.lastInsertRowid, content, project_id: projectId, status: 'pending' };
 }
 
+function completeTask(targetText) {
+    // We use % wildcards so if you say "battery", it finds "Buy a new battery"
+    const stmt = db.prepare(`UPDATE tasks SET status = 'completed' WHERE content LIKE ? AND status = 'pending'`);
+    const info = stmt.run(`%${targetText}%`);
+    
+    // Returns how many rows were actually updated
+    return info.changes; 
+}
+
 function insertHabit(name) {
     const stmt = db.prepare('INSERT INTO habits (name) VALUES (?)');
     const info = stmt.run(name);
@@ -68,5 +77,7 @@ module.exports = {
     db,
     insertProject,
     insertTask,
-    insertHabit
+    insertHabit,
+    completeTask
 };
+
