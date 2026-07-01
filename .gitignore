@@ -15,3 +15,7 @@ Thumbs.db
 
 # auth seesion logs
 auth_session/
+
+#SQL LOG FILES
+*.sqlite-wal
+*.sqlite-shm
