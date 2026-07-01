@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Environment variables (KEEP SECRET)
+.env
+
+# Database files (Local task storage)
+*.sqlite
+*.sqlite-journal
+*.db
+
+# OS generated files
+.DS_Store
+Thumbs.db
