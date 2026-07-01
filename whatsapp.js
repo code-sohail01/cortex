@@ -4,10 +4,10 @@ const {
     useMultiFileAuthState 
 } = require('@whiskeysockets/baileys');
 const pino = require('pino');
+const qrcode = require('qrcode-terminal');
 require('dotenv').config();
 
-// We initialize a mock message processing handler for now.
-// In Phase 2, this will link directly to classifier.js
+// Placeholder for the Phase 2 Processing Module link
 const processIncomingMessage = (rawText) => {
     console.log(`[Pipeline Link] Passing raw text to classifier: "${rawText}"`);
 };
@@ -16,27 +16,33 @@ async function startWhatsAppListener() {
     // 1. Setup persistent session authentication storage
     const { state, saveCreds } = await useMultiFileAuthState('auth_session');
 
-    // 2. Initialize Baileys Socket with silent logging
+    // 2. Initialize Baileys Socket with silent logging to keep terminal clean
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true,
-        logger: pino({ level: 'silent' }) // Keeps your terminal clean
+        printQRInTerminal: false, // Turned off to prevent terminal rendering clashes
+        logger: pino({ level: 'silent' })
     });
 
-    // 3. Listen for changes in the connection state (QR generation, login, disconnects)
+    // 3. Listen for changes in the connection state
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
 
+        // Manually catch the QR string and draw a compact code to the terminal screen
         if (qr) {
-            console.log('--- SCAN THE QR CODE BELOW WITH WHATSAPP TO LOG IN ---');
+            console.log('\n--- SCAN THE QR CODE BELOW WITH WHATSAPP TO LOG IN ---');
+            qrcode.generate(qr, { small: true });
+            console.log('-----------------------------------------------------\n');
         }
 
         if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log(`Connection closed due to: ${lastDisconnect?.error}. Reconnecting: ${shouldReconnect}`);
+            const statusCode = (lastDisconnect?.error)?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            
+            console.log(`[Connection Status] Closed. Reason Code: ${statusCode}. Reconnecting: ${shouldReconnect}`);
             
             if (shouldReconnect) {
-                startWhatsAppListener(); // Re-establish connection loop
+                console.log("[Connection Status] Attempting to re-establish connection stream...");
+                startWhatsAppListener(); // Re-enter the boot loop
             }
         } else if (connection === 'open') {
             console.log('\n=========================================');
@@ -48,39 +54,51 @@ async function startWhatsAppListener() {
     // 4. Save authentication credentials whenever they update
     sock.ev.on('creds.update', saveCreds);
 
-    // 5. Ingestion Pipeline: Listen for incoming messages
+    // 5. Ingestion Pipeline: Listen for incoming/outgoing messages
     sock.ev.on('messages.upsert', async (m) => {
-        if (m.type !== 'notify') return;
+        try {
+            if (m.type !== 'notify') return;
 
-        for (const msg of m.messages) {
-            // Ensure the message has text content and isn't sent by the system
-            if (!msg.message || msg.key.fromMe) continue;
+            for (const msg of m.messages) {
+                // Ensure the message has an actual body message object
+                if (!msg.message) continue;
 
-            const remoteJid = msg.key.remoteJid;
-            const textContent = msg.message.conversation || 
-                                msg.message.extendedTextMessage?.text;
+                // Extract metadata
+                const remoteJid = msg.key.remoteJid;
+                const fromMe = msg.key.fromMe;
 
-            if (!textContent) continue;
+                // Safely parse text across multiple possible WhatsApp message schemas
+                const textContent = msg.message.conversation || 
+                                    msg.message.extendedTextMessage?.text;
 
-            // Target Group Verification Gate
-            const targetGroupJid = process.env.WHATSAPP_GROUP_JID;
+                if (!textContent) continue;
 
-            if (!targetGroupJid || targetGroupJid === 'replace_this_with_your_actual_group_id_later') {
-                // Diagnostic Helper Mode: If no JID is configured yet, print IDs of any message received
-                console.log(`\n[Diagnostic] Incoming message from JID: ${remoteJid}`);
-                console.log(`[Diagnostic] Message body: "${textContent}"`);
-                console.log('Copy this JID paste it inside your .env file to lock your pipeline to this room.');
-                continue;
+                const targetGroupJid = process.env.WHATSAPP_GROUP_JID;
+
+                // DIAGNOSTIC GATE: If no group ID is locked into .env yet, print everything to help find it
+                if (!targetGroupJid || targetGroupJid === 'replace_this_with_your_actual_group_id_later') {
+                    console.log(`\n[Diagnostic] Message Detected!`);
+                    console.log(`-> From Room JID: ${remoteJid}`);
+                    console.log(`-> Sent by you?  ${fromMe}`);
+                    console.log(`-> Content:      "${textContent}"`);
+                    console.log('--------------------------------------------------');
+                    continue;
+                }
+
+                // PRODUCTION GATE: Only pass text along if it matches your locked-in group
+                if (remoteJid === targetGroupJid) {
+                    console.log(`[Ingestion Core] Captured message (fromMe: ${fromMe}): "${textContent}"`);
+                    processIncomingMessage(textContent);
+                }
             }
-
-            // Strict Pipeline isolation check
-            if (remoteJid === targetGroupJid) {
-                console.log(`[Ingestion Core] Captured raw string from target group: "${textContent}"`);
-                processIncomingMessage(textContent);
-            }
+        } catch (pipelineError) {
+            console.error("\n[Pipeline Error] Error caught inside message loop:", pipelineError.message);
         }
     });
 }
 
-// Start the module execution
-startWhatsAppListener().catch(err => console.error("Critical error in WhatsApp execution stream:", err));
+// Start execution and global crash protection
+startWhatsAppListener().catch(err => {
+    console.error("--- CRITICAL TOP-LEVEL RUNTIME ERROR ---");
+    console.error(err);
+});
