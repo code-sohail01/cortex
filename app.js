@@ -14,6 +14,12 @@ const db = require('./database');
 
 
 async function processMessagePipeline(rawText) {
+    try {
+        // Ping the server to tell the Chrome extension to draw the new data immediately
+        await fetch('http://localhost:3000/api/sync/trigger', { method: 'POST' });
+    } catch (syncError) {
+        console.error(`[Pipeline Sync Warning] Server was unable to broadcast push event.`);
+    }
     console.log(`\n=========================================`);
     console.log(`[Pipeline] 📥 New raw message received: "${rawText}"`);
 

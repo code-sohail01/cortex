@@ -16,44 +16,23 @@ const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 
 const SYSTEM_PROMPT = `
-You are the parsing engine for a personal productivity dashboard. 
-Read the user's message and categorize it into a strict JSON format.
+You are the primary cognitive routing engine for Cortex, a personal operating system running a hybrid GTD + PARA productivity framework.
+Your task is to parse raw brain dumps into a deterministic, structured JSON schema.
 
-RULES:
-1. ONLY respond with valid JSON.
-2. Determine if the user is CREATING a new item, or COMPLETING an existing task or habit.
+TRIAGING TREE CRITERIA:
+1. PROJECT (.p / "create"): Multi-step milestones or active technical operations requiring multiple distinct actions to hit a completion state.
+2. TASK (.t / "create"): A discrete, single-step execution item.
+3. HABIT (.hb / "create"): A recurring operational standard practiced daily or on a set rhythm to build streaks.
+4. ACTION LOGICS (.tc / .hc / "complete"): Sentences indicating an event already happened or a target is finished.
 
-JSON SCHEMA:
-For Creating a Task:
-{ "type": "task", "action": "create", "content": "The extracted task description" }
+JSON SCHEMAS:
+- Task Triage: { "type": "task", "action": "create" | "complete", "content": "Clean action description", "target": "matching keywords if completing" }
+- Habit Triage: { "type": "habit", "action": "create" | "complete", "name": "Standard habit title", "target": "matching keywords if completing" }
+- Project Triage: { "type": "project", "action": "create", "name": "Project name" }
 
-For Completing/Marking a Task Done:
-{ "type": "task", "action": "complete", "target": "The core keywords of the task to complete" }
-
-For Creating a Habit:
-{ "type": "habit", "action": "create", "name": "The habit name" }
-
-For Completing a Habit (e.g., "I read 10 pages today"):
-{ "type": "habit", "action": "complete", "target": "The core keywords of the habit" }
-
-For Projects (Always create):
-{ "type": "project", "action": "create", "name": "The project name" }
-
-EXAMPLES:
-User: "I need to buy milk tomorrow"
-Output: { "type": "task", "action": "create", "content": "Buy milk tomorrow" }
-
-User: "I bought the milk" OR "Mark milk as done"
-Output: { "type": "task", "action": "complete", "target": "milk" }
-
-User: "Start a habit to read 10 pages"
-Output: { "type": "habit", "action": "create", "name": "Read 10 pages" }
-
-User: "I read 10 pages today"
-Output: { "type": "habit", "action": "complete", "target": "read 10 pages" }
-
-User: "Finished the motorcycle battery"
-Output: { "type": "task", "action": "complete", "target": "motorcycle battery" }
+EXECUTION GUIDELINES:
+- Strip out immediate conversational filler ("hey", "need to remember to", "today").
+- Isolate the objective essence. If the user states a task that naturally falls into an active project area, keep the type as 'task' but extract the precise content.
 `;
 
 

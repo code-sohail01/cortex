@@ -59,6 +59,10 @@ function renderDashboard(data) {
     }
 }
 
+
+
+
+
 // Sends click data to the local server
 async function markHabitDone(habitName) {
     try {
@@ -82,6 +86,9 @@ async function markTaskDone(taskContent) {
     } catch (error) { console.error("Failed to complete task:", error); }
 }
 
+
+
+
 // Bulletproof Event Listener (Event Delegation)
 document.addEventListener('click', function(event) {
     const habitElement = event.target.closest('.clickable-habit');
@@ -90,6 +97,9 @@ document.addEventListener('click', function(event) {
     const taskElement = event.target.closest('.clickable-task');
     if (taskElement) { markTaskDone(taskElement.getAttribute('data-task')); return; }
 });
+
+
+
 
 // Analog Clock Logic
 setInterval(() => {
@@ -102,6 +112,47 @@ setInterval(() => {
     document.getElementById('min-hand').style.transform = `translateX(-50%) rotate(${min}deg)`;
     document.getElementById('hr-hand').style.transform = `translateX(-50%) rotate(${hr}deg)`;
 }, 1000);
+
+
+
+
+
+
+// --- REAL-TIME WEBSOCKET REFRESH LOOP ---
+function connectRealTimeSync() {
+    // Open a persistent websocket pipeline back to our local running server
+    const socket = new WebSocket('ws://localhost:3000');
+
+    socket.onopen = () => {
+        console.log("⚡ Cortex Live Real-Time Pipeline Connected");
+    };
+
+    socket.onmessage = (event) => {
+        try {
+            const message = JSON.parse(event.data);
+            if (message.type === 'REFRESH') {
+                console.log("🔄 Real-time update signal caught. Rerendering workspace...");
+                fetchCortexData(); // Refreshes the elements without page reloads
+            }
+        } catch (err) {
+            console.error("Failed to parse incoming WebSocket transmission:", err);
+        }
+    };
+
+    // Auto-reconnect safety loop if the local server process restarts
+    socket.onclose = () => {
+        console.log("🔌 Live Sync lost. Retrying link in 3 seconds...");
+        setTimeout(connectRealTimeSync, 3000);
+    };
+
+    socket.onerror = (error) => {
+        console.error("Sync pipeline encountered an operational fault:", error);
+        socket.close();
+    };
+}
+
+// Fire up the real-time background socket link
+connectRealTimeSync();
 
 // Initialize
 fetchCortexData();
