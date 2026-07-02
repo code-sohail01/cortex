@@ -6,11 +6,60 @@ const db = require('./database');
  * The Master Ingestion Pipeline
  * This function fires every time a message hits your WhatsApp group.
  */
+/**
+ * The Master Ingestion Pipeline (CLI + AI Hybrid)
+ */
 async function processMessagePipeline(rawText) {
     console.log(`\n=========================================`);
     console.log(`[Pipeline] 📥 New raw message received: "${rawText}"`);
-    
-    // 1. Send the raw text to the Gemini AI Brain
+
+    const text = rawText.trim();
+
+    // ---------------------------------------------------------
+    // THE CORTEX CLI ROUTER (Fast, Deterministic, No AI)
+    // ---------------------------------------------------------
+    if (text.startsWith('.')) {
+        // Split the text at the first space. 
+        // Example: ".tc Buy milk" -> command: ".tc", payload: "Buy milk"
+        const firstSpaceIndex = text.indexOf(' ');
+        const command = firstSpaceIndex === -1 ? text : text.substring(0, firstSpaceIndex).toLowerCase();
+        const payload = firstSpaceIndex === -1 ? '' : text.substring(firstSpaceIndex + 1).trim();
+
+        try {
+            if (command === '.t') {
+                const result = db.insertTask(payload);
+                console.log(`[CLI] ✅ Task created: ${result.content}`);
+                
+            } else if (command === '.tc') {
+                const changes = db.completeTask(payload);
+                console.log(changes > 0 ? `[CLI] 🎯 Task marked DONE: "${payload}"` : `[CLI] ⚠️ Task not found: "${payload}"`);
+                
+            } else if (command === '.hb') {
+                const result = db.insertHabit(payload);
+                console.log(`[CLI] ✅ Habit created: ${result.name}`);
+                
+            } else if (command === '.hc') {
+                const changes = db.completeHabit(payload);
+                console.log(changes > 0 ? `[CLI] 🔥 Habit updated for today: "${payload}"` : `[CLI] ⚠️ Habit already done/not found: "${payload}"`);
+                
+            } else if (command === '.p') {
+                const result = db.insertProject(payload);
+                console.log(`[CLI] ✅ Project created: ${result.name}`);
+                
+            } else {
+                console.log(`[CLI] ⚠️ Unknown command: ${command}`);
+            }
+        } catch (dbError) {
+            console.error(`[CLI Error] ❌ Database write failed:`, dbError.message);
+        }
+        console.log(`=========================================\n`);
+        return; // Stop execution here so it doesn't go to Gemini
+    }
+
+    // ---------------------------------------------------------
+    // THE AI FALLBACK (For unstructured brain dumps)
+    // ---------------------------------------------------------
+    console.log(`[Pipeline] No CLI tag detected. Routing to Gemini AI...`);
     const parsedData = await classifyMessage(rawText);
     
     if (!parsedData || !parsedData.type) {
@@ -18,37 +67,26 @@ async function processMessagePipeline(rawText) {
         return;
     }
 
-    // 2. Route the structured data based on Type and Action
     try {
-        let result;
-
         if (parsedData.type === 'task') {
-            
-            // --- NEW: Handle Task Completion ---
             if (parsedData.action === 'complete') {
-                const changes = db.completeTask(parsedData.target);
-                if (changes > 0) {
-                    console.log(`[Pipeline] 🎯 Task marked as DONE: "${parsedData.target}" (${changes} updated)`);
-                } else {
-                    console.log(`[Pipeline] ⚠️ Could not find a pending task matching: "${parsedData.target}"`);
-                }
-            } 
-            // --- ORIGINAL: Handle Task Creation ---
-            else {
-                result = db.insertTask(parsedData.content);
-                console.log(`[Pipeline] ✅ Task created (ID: ${result.id}) -> ${result.content}`);
+                db.completeTask(parsedData.target);
+                console.log(`[AI Route] 🎯 Task marked DONE: "${parsedData.target}"`);
+            } else {
+                db.insertTask(parsedData.content);
+                console.log(`[AI Route] ✅ Task created: "${parsedData.content}"`);
             }
-            
         } else if (parsedData.type === 'habit') {
-            result = db.insertHabit(parsedData.name);
-            console.log(`[Pipeline] ✅ Habit saved to DB (ID: ${result.id}) -> ${result.name}`);
-            
+             if (parsedData.action === 'complete') {
+                db.completeHabit(parsedData.target);
+                console.log(`[AI Route] 🔥 Habit updated: "${parsedData.target}"`);
+            } else {
+                db.insertHabit(parsedData.name);
+                console.log(`[AI Route] ✅ Habit created: "${parsedData.name}"`);
+            }
         } else if (parsedData.type === 'project') {
-            result = db.insertProject(parsedData.name);
-            console.log(`[Pipeline] ✅ Project saved to DB (ID: ${result.id}) -> ${result.name}`);
-            
-        } else {
-            console.log(`[Pipeline] ⚠️ Unknown type received:`, parsedData);
+            db.insertProject(parsedData.name);
+            console.log(`[AI Route] ✅ Project created: "${parsedData.name}"`);
         }
     } catch (dbError) {
         console.error(`[Pipeline Error] ❌ Database write failed:`, dbError.message);

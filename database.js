@@ -63,6 +63,29 @@ function completeTask(targetText) {
     return info.changes; 
 }
 
+function completeHabit(targetText) {
+    const today = new Date().toISOString().split('T')[0]; // Gets YYYY-MM-DD
+    
+    // 1. Find the habit matching the text
+    const habit = db.prepare(`SELECT * FROM habits WHERE name LIKE ?`).get(`%${targetText}%`);
+    
+    if (!habit) return 0; // Habit not found
+
+    // 2. Check if it was already done today
+    const isDoneToday = habit.last_completed && habit.last_completed.startsWith(today);
+    if (isDoneToday) return 0; // Prevent double-clicking the streak
+
+    // 3. Update the streak and timestamp
+    const stmt = db.prepare(`
+        UPDATE habits 
+        SET streak = streak + 1, last_completed = CURRENT_TIMESTAMP 
+        WHERE id = ?
+    `);
+    const info = stmt.run(habit.id);
+    return info.changes;
+}
+
+
 function insertHabit(name) {
     const stmt = db.prepare('INSERT INTO habits (name) VALUES (?)');
     const info = stmt.run(name);
@@ -78,6 +101,7 @@ module.exports = {
     insertProject,
     insertTask,
     insertHabit,
-    completeTask
+    completeTask,
+    completeHabit
 };
 

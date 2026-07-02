@@ -38,6 +38,25 @@ app.get('/api/dashboard', (req, res) => {
     }
 });
 
+/**
+ * THE HABIT COMPLETION ENDPOINT
+ * Triggered when you click a habit on the New Tab page.
+ */
+app.post('/api/habits/complete', (req, res) => {
+    const { name } = req.body;
+    try {
+        const changes = db.completeHabit(name);
+        if (changes > 0) {
+            res.json({ success: true, message: "Habit completed for today!" });
+        } else {
+            res.json({ success: false, message: "Already completed or not found." });
+        }
+    } catch (error) {
+        console.error("[API Error] Failed to update habit:", error.message);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 // Start the server
 app.listen(PORT, () => {
     console.log(`\n=========================================`);

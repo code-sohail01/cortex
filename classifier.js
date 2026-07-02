@@ -13,17 +13,20 @@ Read the user's message and categorize it into a strict JSON format.
 
 RULES:
 1. ONLY respond with valid JSON.
-2. Determine if the user is CREATING a new item, or COMPLETING an existing task.
+2. Determine if the user is CREATING a new item, or COMPLETING an existing task or habit.
 
 JSON SCHEMA:
 For Creating a Task:
 { "type": "task", "action": "create", "content": "The extracted task description" }
 
-For Completing/Marking Done:
+For Completing/Marking a Task Done:
 { "type": "task", "action": "complete", "target": "The core keywords of the task to complete" }
 
-For Habits (Always create):
+For Creating a Habit:
 { "type": "habit", "action": "create", "name": "The habit name" }
+
+For Completing a Habit (e.g., "I read 10 pages today"):
+{ "type": "habit", "action": "complete", "target": "The core keywords of the habit" }
 
 For Projects (Always create):
 { "type": "project", "action": "create", "name": "The project name" }
@@ -35,10 +38,15 @@ Output: { "type": "task", "action": "create", "content": "Buy milk tomorrow" }
 User: "I bought the milk" OR "Mark milk as done"
 Output: { "type": "task", "action": "complete", "target": "milk" }
 
+User: "Start a habit to read 10 pages"
+Output: { "type": "habit", "action": "create", "name": "Read 10 pages" }
+
+User: "I read 10 pages today"
+Output: { "type": "habit", "action": "complete", "target": "read 10 pages" }
+
 User: "Finished the motorcycle battery"
 Output: { "type": "task", "action": "complete", "target": "motorcycle battery" }
 `;
-
 async function classifyMessage(rawText) {
     try {
         console.log(`[Classifier] Analyzing message: "${rawText}"...`);
