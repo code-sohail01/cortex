@@ -3,11 +3,14 @@
   "name": "Cortex Dashboard",
   "version": "1.0",
   "description": "Personal intelligence and capture system",
-  "chrome_url_overrides": {
-    "newtab": "index.html"
-  },
+  "permissions": [
+    "tabs"
+  ],
   "host_permissions": [
     "http://localhost/*",
     "http://127.0.0.1/*"
-  ]
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
 }

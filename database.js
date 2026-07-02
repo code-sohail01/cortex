@@ -1,12 +1,19 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
+
+
 // 1. Initialize the SQLite database file path
 const dbPath = path.join(__dirname, 'dashboard.sqlite');
 const db = new Database(dbPath);
 
+
+
 // Enable Write-Ahead Logging (WAL) mode for lightning-fast performance
 db.pragma('journal_mode = WAL');
+
+
+
 
 /**
  * Initializes the database tables if they do not exist yet.
@@ -40,6 +47,9 @@ function initDB() {
     console.log("[Database] Persistence layer and tables checked/initialized.");
 }
 
+
+
+
 // 2. Future-Proofed Data Modification Functions (Isolated from business logic)
 
 function insertProject(name) {
@@ -48,11 +58,19 @@ function insertProject(name) {
     return { id: info.lastInsertRowid, name, status: 'active' };
 }
 
+
+
+
+
 function insertTask(content, projectId = null) {
     const stmt = db.prepare('INSERT INTO tasks (content, project_id) VALUES (?, ?)');
     const info = stmt.run(content, projectId);
     return { id: info.lastInsertRowid, content, project_id: projectId, status: 'pending' };
 }
+
+
+
+
 
 function completeTask(targetText) {
     // We use % wildcards so if you say "battery", it finds "Buy a new battery"
@@ -62,6 +80,9 @@ function completeTask(targetText) {
     // Returns how many rows were actually updated
     return info.changes; 
 }
+
+
+
 
 function completeHabit(targetText) {
     const today = new Date().toISOString().split('T')[0]; // Gets YYYY-MM-DD
@@ -86,14 +107,24 @@ function completeHabit(targetText) {
 }
 
 
+
+
+
+
 function insertHabit(name) {
     const stmt = db.prepare('INSERT INTO habits (name) VALUES (?)');
     const info = stmt.run(name);
     return { id: info.lastInsertRowid, name, streak: 0 };
 }
 
+
+
+
 // Automatically trigger initialization when the script is loaded
 initDB();
+
+
+
 
 // Export database client and basic operations for app.js integration
 module.exports = {

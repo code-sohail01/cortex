@@ -1,11 +1,19 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 require('dotenv').config();
 
+
+
 // Initialize the Gemini API
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+
+
+
 // We use the flash model because it is exceptionally fast, perfect for a real-time pipeline
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+
+
 
 const SYSTEM_PROMPT = `
 You are the parsing engine for a personal productivity dashboard. 
@@ -47,6 +55,10 @@ Output: { "type": "habit", "action": "complete", "target": "read 10 pages" }
 User: "Finished the motorcycle battery"
 Output: { "type": "task", "action": "complete", "target": "motorcycle battery" }
 `;
+
+
+
+
 async function classifyMessage(rawText) {
     try {
         console.log(`[Classifier] Analyzing message: "${rawText}"...`);
@@ -76,6 +88,11 @@ async function classifyMessage(rawText) {
     }
 }
 
+
+
+
+
+
 // --- STANDALONE TEST RUNNER ---
 // If you run 'node classifier.js' directly in the terminal, it will execute this block to test the AI.
 if (require.main === module) {
@@ -86,6 +103,9 @@ if (require.main === module) {
         await classifyMessage("Let's build a new Chrome extension");
     })();
 }
+
+
+
 
 // Export the function so app.js can use it later
 module.exports = { classifyMessage };

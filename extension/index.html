@@ -7,9 +7,14 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="ambient-glow"></div>
+
     <div class="container">
         <header>
-            <h1>CORTEX</h1>
+            <div class="logo-wrapper">
+                <h1>CORTEX</h1>
+                <div class="status-pulse"></div>
+            </div>
             <div class="analog-clock">
                 <div class="hand hour-hand" id="hr-hand"></div>
                 <div class="hand minute-hand" id="min-hand"></div>
@@ -20,18 +25,27 @@
         
         <main class="grid">
             <section class="module">
-                <h2>Habits</h2>
-                <div id="habits-container" class="list">Loading...</div>
+                <div class="module-header">
+                    <h2>Habits</h2>
+                    <div class="accent-line"></div>
+                </div>
+                <div id="habits-container" class="list"></div>
             </section>
             
             <section class="module">
-                <h2>Pending Tasks</h2>
-                <div id="tasks-container" class="list">Loading...</div>
+                <div class="module-header">
+                    <h2>Pending Tasks</h2>
+                    <div class="accent-line"></div>
+                </div>
+                <div id="tasks-container" class="list"></div>
             </section>
             
             <section class="module">
-                <h2>Active Projects</h2>
-                <div id="projects-container" class="list">Loading...</div>
+                <div class="module-header">
+                    <h2>Active Projects</h2>
+                    <div class="accent-line"></div>
+                </div>
+                <div id="projects-container" class="list"></div>
             </section>
         </main>
     </div>

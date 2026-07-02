@@ -7,14 +7,24 @@ const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 require('dotenv').config();
 
+
+
+
+
 // --- GLOBAL MEMORY CACHE ---
 // This safely stores processed IDs to prevent ghost duplicates
 const processedMessageIds = new Set();
 let pipelineCallback = null;
 
+
+
+
 function registerPipeline(callbackFunction) {
     pipelineCallback = callbackFunction;
 }
+
+
+
 
 async function startWhatsAppListener() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_session');
@@ -25,6 +35,9 @@ async function startWhatsAppListener() {
         printQRInTerminal: false, 
         logger: pino({ level: 'silent' })
     });
+
+
+
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -52,7 +65,15 @@ async function startWhatsAppListener() {
         }
     });
 
+
+
+
+
     sock.ev.on('creds.update', saveCreds);
+
+
+
+
 
     // 🚨 The Message Listener (Now safely inside the function where "sock" exists) 🚨
     sock.ev.on('messages.upsert', async (m) => {
@@ -93,7 +114,14 @@ async function startWhatsAppListener() {
         } catch (pipelineError) {
             console.error("\n[Pipeline Error] Error caught inside message loop:", pipelineError.message);
         }
+
+
+
+        
     });
 }
+
+
+
 
 module.exports = { startWhatsAppListener, registerPipeline };

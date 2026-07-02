@@ -2,6 +2,8 @@ const { startWhatsAppListener, registerPipeline } = require('./whatsapp');
 const { classifyMessage } = require('./classifier');
 const db = require('./database');
 
+
+
 /**
  * The Master Ingestion Pipeline
  * This function fires every time a message hits your WhatsApp group.
@@ -9,11 +11,15 @@ const db = require('./database');
 /**
  * The Master Ingestion Pipeline (CLI + AI Hybrid)
  */
+
+
 async function processMessagePipeline(rawText) {
     console.log(`\n=========================================`);
     console.log(`[Pipeline] 📥 New raw message received: "${rawText}"`);
 
     const text = rawText.trim();
+
+
 
     // ---------------------------------------------------------
     // THE CORTEX CLI ROUTER (Fast, Deterministic, No AI)
@@ -54,8 +60,15 @@ async function processMessagePipeline(rawText) {
         }
         console.log(`=========================================\n`);
         return; // Stop execution here so it doesn't go to Gemini
+
+
+
     }
 
+
+
+
+    
     // ---------------------------------------------------------
     // THE AI FALLBACK (For unstructured brain dumps)
     // ---------------------------------------------------------
@@ -94,13 +107,25 @@ async function processMessagePipeline(rawText) {
     console.log(`=========================================\n`);
 }
 
+
+
+
+
+
 // ---------------------------------------------------------
 // BOOT SEQUENCE
 // ---------------------------------------------------------
+
 console.log("Starting Cortex Master Controller...");
+
+
 
 // 1. Plug the pipeline logic into the WhatsApp listener
 registerPipeline(processMessagePipeline);
+
+
+
+
 
 // 2. Boot up the WhatsApp connection
 startWhatsAppListener().catch(err => {
