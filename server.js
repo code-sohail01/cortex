@@ -1,13 +1,22 @@
 const express = require('express');
 const cors = require('cors');
+
+
+
 // 1. FIXED IMPORT: We must explicitly pull in the completeHabit function alongside db
-const { db, completeHabit } = require('./database'); 
+const { db, completeHabit , completeTask } = require('./database'); 
 
 const app = express();
 const PORT = 3000;
 
+
+
 app.use(cors());
 app.use(express.json());
+
+
+
+
 
 /**
  * THE DASHBOARD ENDPOINT
@@ -24,6 +33,10 @@ app.get('/api/dashboard', (req, res) => {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
+
+
+
 
 /**
  * THE HABIT COMPLETION ENDPOINT
@@ -44,6 +57,34 @@ app.post('/api/habits/complete', (req, res) => {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
+
+
+
+
+
+/**
+ * THE TASK COMPLETION ENDPOINT
+ * Triggered when you click a task on the New Tab page.
+ */
+app.post('/api/tasks/complete', (req, res) => {
+    const { content } = req.body;
+    try {
+        const changes = completeTask(content); 
+        
+        if (changes > 0) {
+            res.json({ success: true, message: "Task marked as done!" });
+        } else {
+            res.json({ success: false, message: "Task not found." });
+        }
+    } catch (error) {
+        console.error("[API Error] Failed to complete task:", error.message);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+
+
 
 // Start the server
 app.listen(PORT, () => {
