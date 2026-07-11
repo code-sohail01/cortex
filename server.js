@@ -45,13 +45,15 @@ function broadcastRefresh() {
 
 // 1. Fetch the full Oasis Matrix for the dashboard
 app.get('/api/habits/matrix', (req, res) => {
-    try {
-        const matrix = getMonthlyMatrix();
-        res.json({ habits: matrix });
-    } catch (error) {
-        res.status(500).json({ error: "Internal Server Error" });
-    }
+    try { 
+        // Accept ?year=2026&month=6 from the frontend
+        const year = req.query.year;
+        const month = req.query.month;
+        res.json({ habits: getMonthlyMatrix(year, month) }); 
+    } 
+    catch (error) { res.status(500).json({ error: "Internal Server Error" }); }
 });
+
 
 // 2. Toggle a habit log (Used by dashboard clicks)
 app.post('/api/logs/toggle', (req, res) => {

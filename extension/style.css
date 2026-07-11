@@ -143,3 +143,7 @@ h1 {
 #add-btn:active {
     transform: scale(0.98);
 }
+
+#prev-month:hover, #next-month:hover { 
+    color: #cf795c !important; 
+}

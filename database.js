@@ -92,26 +92,44 @@ function getPendingHabitsForToday() {
 }
 
 
-function getMonthlyMatrix(yearMonth = null) {
-    // Default to current month (e.g., '2026-07') in PKT if not provided
-    const currentMonthPrefix = yearMonth || getPktDateString().substring(0, 7);
+
+
+// Fetches the matrix for a SPECIFIC month and year
+function getMonthlyMatrix(queryYear, queryMonth) {
+    const pktNow = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Karachi"}));
+    const targetYear = queryYear ? parseInt(queryYear) : pktNow.getFullYear();
+    const targetMonth = queryMonth ? parseInt(queryMonth) : pktNow.getMonth() + 1;
+
+    // Format for log searching (e.g., "2026-06-")
+    const monthString = targetMonth.toString().padStart(2, '0');
+    const datePrefix = `${targetYear}-${monthString}-`;
+
+    // --- THE TIME TRAVEL FIX ---
+    // We calculate the 1st day of the NEXT month. 
+    // We will only load habits created BEFORE this exact date.
+    let nextMonth = targetMonth + 1;
+    let nextYear = targetYear;
+    if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear++;
+    }
+    const cutoffDate = `${nextYear}-${nextMonth.toString().padStart(2, '0')}-01`;
+
+    // Only fetch habits created before the cutoff
+    const habits = db.prepare('SELECT id, name FROM habits WHERE created_at < ? ORDER BY id ASC').all(cutoffDate);
     
-    const habits = db.prepare(`SELECT id, name FROM habits ORDER BY id ASC`).all();
-    
-    // For each habit, get all completed dates for the requested month
-    const matrix = habits.map(habit => {
+    return habits.map(habit => {
         const logs = db.prepare(`
             SELECT date FROM habit_logs 
             WHERE habit_id = ? AND date LIKE ?
-        `).all(habit.id, `${currentMonthPrefix}-%`);
+        `).all(habit.id, `${datePrefix}%`);
         
         return {
-            ...habit,
-            completedDates: logs.map(l => l.date) // Array of 'YYYY-MM-DD' strings
+            id: habit.id,
+            name: habit.name,
+            completedDates: logs.map(l => l.date)
         };
     });
-
-    return matrix;
 }
 
 

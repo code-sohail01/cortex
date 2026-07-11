@@ -13,9 +13,12 @@
     <div class="container">
         <header>
             <h1>CORTEX.</h1>
-            <div class="time-panel">
-                <div id="current-month" class="month-display">Loading Month...</div>
-                <div class="divider">•</div>
+            <div class="time-panel" style="display: flex; align-items: center; gap: 8px;">
+                <span id="prev-month" style="cursor: pointer; color: #aaa; font-size: 1.4rem; line-height: 1; user-select: none; padding: 0 5px; transition: color 0.2s ease;">‹</span>
+                <div id="current-month" class="month-display" style="min-width: 85px; text-align: center;">Loading...</div>
+                <span id="next-month" style="cursor: pointer; color: #aaa; font-size: 1.4rem; line-height: 1; user-select: none; padding: 0 5px; transition: color 0.2s ease;">›</span>
+                
+                <div class="divider" style="margin: 0 4px; color: #ccc;">•</div>
                 <div id="live-timer" class="live-timer">00:00:00</div>
             </div>
             
