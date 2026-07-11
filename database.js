@@ -140,6 +140,18 @@ function logHabitStrict(habitId, date = getPktDateString()) {
     }
 }
 
+
+
+// --- DELETE OPERATION ---
+function deleteHabit(habitId) {
+    // 1. Wipe all checkmarks associated with this habit
+    db.prepare('DELETE FROM habit_logs WHERE habit_id = ?').run(habitId);
+    // 2. Wipe the habit itself
+    const info = db.prepare('DELETE FROM habits WHERE id = ?').run(habitId);
+    return { success: info.changes > 0 };
+}
+
+
 // Boot the DB
 initDB();
 
@@ -151,5 +163,6 @@ module.exports = {
     getPendingHabitsForToday,
     getMonthlyMatrix,
     getPendingHabitsForTodayOrdered,
-    logHabitStrict
+    logHabitStrict,
+    deleteHabit
 };

@@ -5,7 +5,8 @@ const WebSocket = require('ws');
 const { 
     getMonthlyMatrix, 
     toggleHabitLog, 
-    addHabit 
+    addHabit,
+    deleteHabit
 } = require('./database');
 
 const app = express();
@@ -90,4 +91,29 @@ server.listen(PORT, () => {
     console.log(`\n=========================================`);
     console.log(`📡 Oasis Real-Time Server running on port ${PORT}`);
     console.log(`=========================================\n`);
+});
+
+
+
+// 5. Delete a habit and all its history
+app.delete('/api/habits/:id', (req, res) => {
+    try {
+        // Force the ID into a pure integer
+        const habitId = parseInt(req.params.id, 10);
+        console.log(`[Server] Attempting to delete habit ID: ${habitId}`);
+        
+        const result = deleteHabit(habitId);
+        
+        if (result.success) {
+            console.log(`[Server] Successfully deleted habit ID: ${habitId}`);
+            broadcastRefresh(); // Instantly removes it from your screen
+            res.json(result);
+        } else {
+            console.log(`[Server] Failed to find habit ID: ${habitId}`);
+            res.status(404).json({ error: "Habit not found" });
+        }
+    } catch (error) {
+        console.error("[Server] Delete Error:", error.message);
+        res.status(500).json({ error: error.message });
+    }
 });

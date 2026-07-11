@@ -70,7 +70,7 @@ function renderMatrix(habits) {
 
     let html = '';
 
-    // 1. Build Header Row (Days 1 - End of Month)
+// 1. Build Header Row (Days 1 - End of Month)
     html += `<div class="matrix-row header-row" style="display: flex; margin-bottom: 15px; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px;">`;
     html += `<div class="matrix-label" style="flex: 0 0 200px; font-weight: 600; color: #555;">Habit</div>`;
     html += `<div class="matrix-days" style="display: flex; flex: 1; justify-content: space-between;">`;
@@ -88,15 +88,20 @@ function renderMatrix(habits) {
 
 
     
-    // 2. Build Habit Rows
-    habits.forEach(habit => {
+
+// 2. Build Habit Rows
+    // Add 'index' here to count the rows dynamically
+    habits.forEach((habit, index) => {
         html += `<div class="matrix-row" style="display: flex; align-items: center; margin-bottom: 12px;">`;
-        html += `<div class="matrix-label" style="flex: 0 0 200px; font-weight: 500; font-size: 0.95rem;">
-        <span style="color: #bbb; margin-right: 8px; font-size: 0.8rem; font-weight: 400;">${habit.id}.</span>${habit.name}</div>`;
+        
+        // Replace ${habit.id} with ${index + 1} for the visual number
+        html += `<div class="matrix-label" style="flex: 0 0 200px; display: flex; align-items: center; justify-content: space-between; font-weight: 500; font-size: 0.95rem; padding-right: 15px;">
+            <div><span style="color: #bbb; margin-right: 8px; font-size: 0.8rem; font-weight: 400;">${index + 1}.</span>${habit.name}</div>
+            <span class="delete-btn" data-id="${habit.id}" style="color: #ddd; cursor: pointer; font-size: 1.2rem; line-height: 1; transition: color 0.2s ease;">×</span>
+        </div>`;
         
         html += `<div class="matrix-days" style="display: flex; flex: 1; justify-content: space-between;">`;
         for (let d = 1; d <= daysInMonth; d++) {
-            // Construct YYYY-MM-DD for the specific cell
             const cellDateObj = new Date(year, month, d);
             const dateString = formatToYMD(cellDateObj);
             
@@ -169,7 +174,7 @@ async function addHabit(name) {
 
 // --- EVENT DELEGATION ---
 document.addEventListener('click', function(event) {
-    // ONLY target circles that have the 'clickable' class (Today's date)
+    // 1. Check if clicked on a day circle
     const circle = event.target.closest('.day-circle.clickable');
     if (circle) {
         const habitId = circle.getAttribute('data-habit');
@@ -178,7 +183,19 @@ document.addEventListener('click', function(event) {
         return;
     }
 
-    // Check if clicked Add button
+    // 2. Check if clicked on a Delete button
+    const deleteBtn = event.target.closest('.delete-btn');
+    if (deleteBtn) {
+        const habitId = deleteBtn.getAttribute('data-id');
+        // Double-check before wiping data
+        if (confirm("Are you sure you want to delete this habit and all its history?")) {
+            fetch(`http://localhost:3000/api/habits/${habitId}`, { method: 'DELETE' })
+                .catch(err => console.error("Failed to delete:", err));
+        }
+        return;
+    }
+
+    // 3. Check if clicked Add button
     if (event.target.id === 'add-btn') {
         const input = document.getElementById('new-habit-input');
         addHabit(input.value.trim());

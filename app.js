@@ -30,22 +30,28 @@ async function processMessagePipeline(rawText) {
 
 
     // ---------------------------------------------------------
-    // 1. QUICK-FIRE SHORTCUT (.d habit_name OR .d id)
+    // 1. QUICK-FIRE SHORTCUT (.d habit_name OR .d number)
     // ---------------------------------------------------------
     if (lowerText.startsWith('.d ')) {
         const queryArg = lowerText.substring(3).trim();
         let habit;
         
-        // Check if the user typed a pure number (e.g., ".d 1")
+        // Check if the user typed a pure number (e.g., ".d 2")
         if (/^\d+$/.test(queryArg)) {
-            habit = db.prepare(`SELECT id, name FROM habits WHERE id = ?`).get(parseInt(queryArg));
+            const visualNumber = parseInt(queryArg, 10);
+            // Fetch all habits in the exact order they appear on the dashboard
+            const allHabits = db.prepare(`SELECT id, name FROM habits ORDER BY id ASC`).all();
+            
+            // Map the visual number (1-based) to the array index (0-based)
+            if (visualNumber > 0 && visualNumber <= allHabits.length) {
+                habit = allHabits[visualNumber - 1]; 
+            }
         } else {
             // User typed text (e.g., ".d gym"). 
-            // We use queryArg + '%' so it strictly matches the START of the name, preventing the "g" bug.
             habit = db.prepare(`SELECT id, name FROM habits WHERE name LIKE ?`).get(`${queryArg}%`);
         }
         
-    if(habit) {
+        if (habit) {
             // Use the strict logger instead of the toggle
             const result = logHabitStrict(habit.id);
             
@@ -69,6 +75,7 @@ async function processMessagePipeline(rawText) {
         }
         return; 
     }
+
 
     // ---------------------------------------------------------
     // 2. THE 'YNY' NIGHTLY PARSER
