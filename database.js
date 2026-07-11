@@ -1,138 +1,155 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-
-
-// 1. Initialize the SQLite database file path
-const dbPath = path.join(__dirname, 'dashboard.sqlite');
+// 1. Initialize the new single canonical database
+const dbPath = path.join(__dirname, 'cortex.db');
 const db = new Database(dbPath);
 
-
-
-// Enable Write-Ahead Logging (WAL) mode for lightning-fast performance
+// Enable Write-Ahead Logging (WAL) mode for fast concurrent operations
 db.pragma('journal_mode = WAL');
 
-
-
+/**
+ * HELPER: Always get the exact YYYY-MM-DD string for Pakistan Standard Time (PKT)
+ */
+function getPktDateString(dateObj = new Date()) {
+    // 'en-CA' inherently formats as YYYY-MM-DD
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Karachi',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+    return formatter.format(dateObj);
+}
 
 /**
  * Initializes the database tables if they do not exist yet.
  */
 function initDB() {
     db.exec(`
-        CREATE TABLE IF NOT EXISTS projects (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            status TEXT DEFAULT 'active',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_id INTEGER NULL,
-            content TEXT NOT NULL,
-            status TEXT DEFAULT 'pending',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE SET NULL
-        );
-
         CREATE TABLE IF NOT EXISTS habits (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            streak INTEGER DEFAULT 0,
-            last_completed DATETIME NULL,
+            name TEXT UNIQUE NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS habit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            habit_id INTEGER NOT NULL,
+            date TEXT NOT NULL, -- Stored explicitly as 'YYYY-MM-DD'
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (habit_id) REFERENCES habits(id) ON DELETE CASCADE,
+            UNIQUE(habit_id, date)
+        );
     `);
-    console.log("[Database] Persistence layer and tables checked/initialized.");
+    console.log("[Database] Oasis Habit Engine tables initialized.");
 }
 
+// ---------------------------------------------------------
+// DATA OPERATIONS
+// ---------------------------------------------------------
 
-
-
-// 2. Future-Proofed Data Modification Functions (Isolated from business logic)
-
-function insertProject(name) {
-    const stmt = db.prepare('INSERT INTO projects (name) VALUES (?)');
-    const info = stmt.run(name);
-    return { id: info.lastInsertRowid, name, status: 'active' };
+function addHabit(name) {
+    try {
+        const stmt = db.prepare('INSERT INTO habits (name) VALUES (?)');
+        const info = stmt.run(name);
+        return { success: true, id: info.lastInsertRowid, name };
+    } catch (err) {
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+            return { success: false, error: 'Habit already exists.' };
+        }
+        throw err;
+    }
 }
 
-
-
-
-
-function insertTask(content, projectId = null) {
-    const stmt = db.prepare('INSERT INTO tasks (content, project_id) VALUES (?, ?)');
-    const info = stmt.run(content, projectId);
-    return { id: info.lastInsertRowid, content, project_id: projectId, status: 'pending' };
-}
-
-
-
-
-
-function completeTask(targetText) {
-    // We use % wildcards so if you say "battery", it finds "Buy a new battery"
-    const stmt = db.prepare(`UPDATE tasks SET status = 'completed' WHERE content LIKE ? AND status = 'pending'`);
-    const info = stmt.run(`%${targetText}%`);
+function toggleHabitLog(habitId, targetDate = null) {
+    // Default to today's PKT date if none is provided
+    const dateToLog = targetDate || getPktDateString();
     
-    // Returns how many rows were actually updated
-    return info.changes; 
+    // Check if it's already logged for this date
+    const existingLog = db.prepare(`SELECT id FROM habit_logs WHERE habit_id = ? AND date = ?`).get(habitId, dateToLog);
+
+    if (existingLog) {
+        // If it exists, untick it (delete)
+        db.prepare(`DELETE FROM habit_logs WHERE id = ?`).run(existingLog.id);
+        return { action: 'removed', date: dateToLog };
+    } else {
+        // If it doesn't exist, tick it (insert)
+        db.prepare(`INSERT INTO habit_logs (habit_id, date) VALUES (?, ?)`).run(habitId, dateToLog);
+        return { action: 'added', date: dateToLog };
+    }
+}
+
+function getPendingHabitsForToday() {
+    const today = getPktDateString();
+    // Select habits that do NOT have a log in the habit_logs table for today
+    return db.prepare(`
+        SELECT h.id, h.name 
+        FROM habits h
+        LEFT JOIN habit_logs l ON h.id = l.habit_id AND l.date = ?
+        WHERE l.id IS NULL
+    `).all(today);
 }
 
 
-
-
-function completeHabit(targetText) {
-    const today = new Date().toISOString().split('T')[0]; // Gets YYYY-MM-DD
+function getMonthlyMatrix(yearMonth = null) {
+    // Default to current month (e.g., '2026-07') in PKT if not provided
+    const currentMonthPrefix = yearMonth || getPktDateString().substring(0, 7);
     
-    // 1. Find the habit matching the text
-    const habit = db.prepare(`SELECT * FROM habits WHERE name LIKE ?`).get(`%${targetText}%`);
+    const habits = db.prepare(`SELECT id, name FROM habits ORDER BY id ASC`).all();
     
-    if (!habit) return 0; // Habit not found
+    // For each habit, get all completed dates for the requested month
+    const matrix = habits.map(habit => {
+        const logs = db.prepare(`
+            SELECT date FROM habit_logs 
+            WHERE habit_id = ? AND date LIKE ?
+        `).all(habit.id, `${currentMonthPrefix}-%`);
+        
+        return {
+            ...habit,
+            completedDates: logs.map(l => l.date) // Array of 'YYYY-MM-DD' strings
+        };
+    });
 
-    // 2. Check if it was already done today
-    const isDoneToday = habit.last_completed && habit.last_completed.startsWith(today);
-    if (isDoneToday) return 0; // Prevent double-clicking the streak
-
-    // 3. Update the streak and timestamp
-    const stmt = db.prepare(`
-        UPDATE habits 
-        SET streak = streak + 1, last_completed = CURRENT_TIMESTAMP 
-        WHERE id = ?
-    `);
-    const info = stmt.run(habit.id);
-    return info.changes;
+    return matrix;
 }
 
 
-
-
-
-
-function insertHabit(name) {
-    const stmt = db.prepare('INSERT INTO habits (name) VALUES (?)');
-    const info = stmt.run(name);
-    return { id: info.lastInsertRowid, name, streak: 0 };
+function getPendingHabitsForTodayOrdered() {
+    const today = getPktDateString();
+    // This order by h.id ASC matches the order used in getMonthlyMatrix()
+    return db.prepare(`
+        SELECT h.id, h.name 
+        FROM habits h
+        LEFT JOIN habit_logs l ON h.id = l.habit_id AND l.date = ?
+        WHERE l.id IS NULL
+        ORDER BY h.id ASC
+    `).all(today);
 }
 
 
+// Strict logging for WhatsApp (prevents accidental unticking)
+function logHabitStrict(habitId, date = getPktDateString()) {
+    const existing = db.prepare('SELECT id FROM habit_logs WHERE habit_id = ? AND date = ?').get(habitId, date);
+    
+    if (existing) {
+        return { action: 'already_logged' }; // Tell the bot it was already done
+    } else {
+        db.prepare('INSERT INTO habit_logs (habit_id, date) VALUES (?, ?)').run(habitId, date);
+        return { action: 'logged' };
+    }
+}
 
-
-// Automatically trigger initialization when the script is loaded
+// Boot the DB
 initDB();
 
-
-
-
-// Export database client and basic operations for app.js integration
 module.exports = {
     db,
-    insertProject,
-    insertTask,
-    insertHabit,
-    completeTask,
-    completeHabit
+    getPktDateString,
+    addHabit,
+    toggleHabitLog,
+    getPendingHabitsForToday,
+    getMonthlyMatrix,
+    getPendingHabitsForTodayOrdered,
+    logHabitStrict
 };
-

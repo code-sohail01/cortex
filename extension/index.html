@@ -3,52 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cortex</title>
+    <title>CORTEX | Monthly Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="ambient-glow"></div>
-
     <div class="container">
         <header>
-            <div class="logo-wrapper">
-                <h1>CORTEX</h1>
-                <div class="status-pulse"></div>
+            <h1>CORTEX.</h1>
+            <div class="time-panel">
+                <div id="current-month" class="month-display">Loading Month...</div>
+                <div class="divider">•</div>
+                <div id="live-timer" class="live-timer">00:00:00</div>
             </div>
-            <div class="analog-clock">
-                <div class="hand hour-hand" id="hr-hand"></div>
-                <div class="hand minute-hand" id="min-hand"></div>
-                <div class="hand second-hand" id="sec-hand"></div>
-                <div class="clock-center"></div>
+            
+            <div class="progress-container">
+                <div class="progress-labels">
+                    <span>Monthly Progress</span>
+                    <span><span id="progress-text">0</span>%</span>
+                </div>
+                <div class="progress-wrapper">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
             </div>
         </header>
-        
-        <main class="grid">
-            <section class="module">
-                <div class="module-header">
-                    <h2>Habits</h2>
-                    <div class="accent-line"></div>
-                </div>
-                <div id="habits-container" class="list"></div>
-            </section>
-            
-            <section class="module">
-                <div class="module-header">
-                    <h2>Pending Tasks</h2>
-                    <div class="accent-line"></div>
-                </div>
-                <div id="tasks-container" class="list"></div>
-            </section>
-            
-            <section class="module">
-                <div class="module-header">
-                    <h2>Active Projects</h2>
-                    <div class="accent-line"></div>
-                </div>
-                <div id="projects-container" class="list"></div>
-            </section>
-        </main>
+
+        <div class="tracker-wrapper">
+            <div class="tracker-container" id="tracker-container">
+                <!-- Days Header and Habit Rows will be injected here -->
+            </div>
+        </div>
+
+        <div class="add-habit">
+            <input type="text" id="new-habit-input" placeholder="What habit are we building?">
+            <button id="add-btn">Add Habit</button>
+        </div>
     </div>
+
     <script src="script.js"></script>
 </body>
 </html>

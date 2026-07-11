@@ -8,22 +8,39 @@ const qrcode = require('qrcode-terminal');
 require('dotenv').config();
 
 
-
-
-
-// --- GLOBAL MEMORY CACHE ---
-// This safely stores processed IDs to prevent ghost duplicates
+// --- GLOBAL MEMORY CACHE & STATE ---
+// Safely stores processed IDs to prevent ghost duplicates
 const processedMessageIds = new Set();
 let pipelineCallback = null;
 
-
+// NEW: Global socket reference so we can send messages from outside the listener
+let activeSocket = null; 
 
 
 function registerPipeline(callbackFunction) {
     pipelineCallback = callbackFunction;
 }
 
+// NEW: Function to send messages out to the group
+async function sendOutboundMessage(text) {
+    const groupId = process.env.WHATSAPP_GROUP_JID;
+    
+    if (!groupId || groupId === 'replace_this_with_your_actual_group_id_later') {
+        console.error("⚠️ Cannot send message: WHATSAPP_GROUP_JID is not set in .env");
+        return;
+    }
 
+    if (!activeSocket) {
+        console.error("⚠️ Cannot send message: WhatsApp socket is not connected yet.");
+        return;
+    }
+
+    try {
+        await activeSocket.sendMessage(groupId, { text: text });
+    } catch (err) {
+        console.error("Failed to send WhatsApp message:", err);
+    }
+}
 
 
 async function startWhatsAppListener() {
@@ -36,7 +53,8 @@ async function startWhatsAppListener() {
         logger: pino({ level: 'silent' })
     });
 
-
+    // NEW: Store the active connection globally so sendOutboundMessage can use it
+    activeSocket = sock;
 
 
     sock.ev.on('connection.update', (update) => {
@@ -66,16 +84,10 @@ async function startWhatsAppListener() {
     });
 
 
-
-
-
     sock.ev.on('creds.update', saveCreds);
 
 
-
-
-
-    // 🚨 The Message Listener (Now safely inside the function where "sock" exists) 🚨
+    // 🚨 The Message Listener 🚨
     sock.ev.on('messages.upsert', async (m) => {
         try {
             if (m.type !== 'notify') return;
@@ -83,14 +95,11 @@ async function startWhatsAppListener() {
             for (const msg of m.messages) {
                 if (!msg.message) continue;
 
-                // DUPLICATE PREVENTION: Check if we have already seen this exact message ID
+                // DUPLICATE PREVENTION
                 const messageId = msg.key.id;
                 if (processedMessageIds.has(messageId)) continue;
                 
-                // Add to memory cache so we don't process it again
                 processedMessageIds.add(messageId);
-                
-                // Keep the cache from growing infinitely by clearing it every 1000 messages
                 if (processedMessageIds.size > 1000) processedMessageIds.clear();
 
                 const remoteJid = msg.key.remoteJid;
@@ -114,14 +123,12 @@ async function startWhatsAppListener() {
         } catch (pipelineError) {
             console.error("\n[Pipeline Error] Error caught inside message loop:", pipelineError.message);
         }
-
-
-
-        
     });
 }
 
 
-
-
-module.exports = { startWhatsAppListener, registerPipeline };
+module.exports = { 
+    startWhatsAppListener, 
+    registerPipeline,
+    sendOutboundMessage // <-- NEW: Exported so app.js can trigger it
+};

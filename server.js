@@ -2,7 +2,11 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const WebSocket = require('ws');
-const { db, completeHabit, completeTask } = require('./database');
+const { 
+    getMonthlyMatrix, 
+    toggleHabitLog, 
+    addHabit 
+} = require('./database');
 
 const app = express();
 const PORT = 3000;
@@ -34,49 +38,49 @@ function broadcastRefresh() {
     });
 }
 
-/** Express Endpoints **/
-app.get('/api/dashboard', (req, res) => {
+// ---------------------------------------------------------
+// EXPRESS REST API ENDPOINTS
+// ---------------------------------------------------------
+
+// 1. Fetch the full Oasis Matrix for the dashboard
+app.get('/api/habits/matrix', (req, res) => {
     try {
-        const projects = db.prepare("SELECT * FROM projects WHERE status = 'active' ORDER BY created_at DESC").all();
-        const tasks = db.prepare("SELECT * FROM tasks WHERE status = 'pending' ORDER BY created_at DESC").all();
-        const habits = db.prepare("SELECT * FROM habits ORDER BY created_at DESC").all();
-        res.json({ projects, tasks, habits });
+        const matrix = getMonthlyMatrix();
+        res.json({ habits: matrix });
     } catch (error) {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
-app.post('/api/habits/complete', (req, res) => {
+// 2. Toggle a habit log (Used by dashboard clicks)
+app.post('/api/logs/toggle', (req, res) => {
+    const { habitId, date } = req.body;
+    try {
+        const result = toggleHabitLog(habitId, date);
+        broadcastRefresh(); // Trigger real-time push event
+        res.json({ success: true, ...result });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 3. Add a new habit
+app.post('/api/habits/add', (req, res) => {
     const { name } = req.body;
     try {
-        const changes = completeHabit(name);
-        if (changes > 0) {
+        const result = addHabit(name);
+        if (result.success) {
             broadcastRefresh(); // Trigger real-time push event
-            res.json({ success: true });
+            res.json(result);
         } else {
-            res.json({ success: false });
+            res.status(400).json(result); // Habit already exists
         }
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-app.post('/api/tasks/complete', (req, res) => {
-    const { content } = req.body;
-    try {
-        const changes = completeTask(content);
-        if (changes > 0) {
-            broadcastRefresh(); // Trigger real-time push event
-            res.json({ success: true });
-        } else {
-            res.json({ success: false });
-        }
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// NEW EXPOSED PUBLIC INTERFACE: Allows app.js to trigger a UI refresh when WhatsApp writes data
+// 4. EXTERNAL TRIGGER: Allows app.js (WhatsApp) to trigger a UI refresh
 app.post('/api/sync/trigger', (req, res) => {
     broadcastRefresh();
     res.json({ success: true });
@@ -84,6 +88,6 @@ app.post('/api/sync/trigger', (req, res) => {
 
 server.listen(PORT, () => {
     console.log(`\n=========================================`);
-    console.log(`📡 Real-Time Hybrid Server running on port ${PORT}`);
+    console.log(`📡 Oasis Real-Time Server running on port ${PORT}`);
     console.log(`=========================================\n`);
 });
