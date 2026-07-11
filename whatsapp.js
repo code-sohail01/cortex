@@ -21,8 +21,8 @@ function registerPipeline(callbackFunction) {
     pipelineCallback = callbackFunction;
 }
 
-// NEW: Function to send messages out to the group
-async function sendOutboundMessage(text) {
+// NEW: Accepts an optional 'quotedMsg' to visually attach replies!
+async function sendOutboundMessage(text, quotedMsg = null) {
     const groupId = process.env.WHATSAPP_GROUP_JID;
     
     if (!groupId || groupId === 'replace_this_with_your_actual_group_id_later') {
@@ -36,7 +36,9 @@ async function sendOutboundMessage(text) {
     }
 
     try {
-        await activeSocket.sendMessage(groupId, { text: text });
+        // If a message object is passed, quote it. Otherwise, send it normally (like for Cron jobs)
+        const options = quotedMsg ? { quoted: quotedMsg } : {};
+        await activeSocket.sendMessage(groupId, { text: text }, options);
     } catch (err) {
         console.error("Failed to send WhatsApp message:", err);
     }
@@ -44,24 +46,23 @@ async function sendOutboundMessage(text) {
 
 
 async function startWhatsAppListener() {
+    // Note: Deleting the 'auth_session' folder will trigger a new QR code
     const { state, saveCreds } = await useMultiFileAuthState('auth_session');
 
-    // Initialize the WhatsApp Socket (this creates "sock")
+    // Initialize the WhatsApp Socket
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false, 
         logger: pino({ level: 'silent' })
     });
 
-    // NEW: Store the active connection globally so sendOutboundMessage can use it
     activeSocket = sock;
-
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
-            console.log('\n--- SCAN THE QR CODE BELOW WITH WHATSAPP TO LOG IN ---');
+            console.log('\n--- SCAN THE QR CODE BELOW WITH YOUR SECOND WHATSAPP ACCOUNT ---');
             qrcode.generate(qr, { small: true });
             console.log('-----------------------------------------------------\n');
         }
@@ -95,6 +96,9 @@ async function startWhatsAppListener() {
             for (const msg of m.messages) {
                 if (!msg.message) continue;
 
+                // 🛡️ THE SHIELD: Prevent infinite loop if the bot reads its own message
+                if (msg.key.fromMe) continue; 
+
                 // DUPLICATE PREVENTION
                 const messageId = msg.key.id;
                 if (processedMessageIds.has(messageId)) continue;
@@ -103,7 +107,6 @@ async function startWhatsAppListener() {
                 if (processedMessageIds.size > 1000) processedMessageIds.clear();
 
                 const remoteJid = msg.key.remoteJid;
-                const fromMe = msg.key.fromMe;
                 const textContent = msg.message.conversation || msg.message.extendedTextMessage?.text;
 
                 if (!textContent) continue;
@@ -116,8 +119,10 @@ async function startWhatsAppListener() {
                 }
 
                 if (remoteJid === targetGroupJid) {
-                    console.log(`[Ingestion Core] Captured message (fromMe: ${fromMe}): "${textContent}"`);
-                    if (pipelineCallback) pipelineCallback(textContent);
+                    console.log(`[Ingestion Core] Captured message: "${textContent}"`);
+                    
+                    // NEW: Pass BOTH the text and the raw message object to app.js
+                    if (pipelineCallback) pipelineCallback(textContent, msg);
                 }
             }
         } catch (pipelineError) {
@@ -130,5 +135,5 @@ async function startWhatsAppListener() {
 module.exports = { 
     startWhatsAppListener, 
     registerPipeline,
-    sendOutboundMessage // <-- NEW: Exported so app.js can trigger it
+    sendOutboundMessage 
 };
